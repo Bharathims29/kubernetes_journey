@@ -464,6 +464,10 @@ flowchart TB
 minikube image build -t react-demo:latest ./frontend
 minikube image build -t node-demo:latest ./backend
 
+#install ingress
+
+minikube addons enable ingress
+
 # Deploy everything
 kubectl apply -k k8s
 

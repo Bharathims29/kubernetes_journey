@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: react-demo:latest
+          image: react-demo:v1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: node-demo:latest
+          image: node-demo:v1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

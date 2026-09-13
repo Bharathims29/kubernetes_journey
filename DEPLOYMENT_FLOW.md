@@ -208,3 +208,58 @@ Then use full image names in Kubernetes:
 image: your-dockerhub-user/react-demo:v2
 image: your-dockerhub-user/node-demo:v2
 ```
+
+## 8. Secret Format: stringData vs base64
+
+For this project, `stringData` is the best format to write in YAML:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongodb-credentials
+  namespace: demo-app
+type: Opaque
+stringData:
+  MONGODB_USERNAME: admin
+  MONGODB_PASSWORD: Admin@123
+```
+
+Kubernetes automatically converts `stringData` into base64 under the Secret's
+stored `.data` field.
+
+You can also write the same Secret using base64:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongodb-credentials
+  namespace: demo-app
+type: Opaque
+data:
+  MONGODB_USERNAME: YWRtaW4=
+  MONGODB_PASSWORD: QWRtaW5AMTIz
+```
+
+But base64 is not encryption. It is only encoding, so anyone can decode it.
+For local demo manifests, `stringData` is cleaner and less error-prone.
+
+For production, prefer one of these options:
+
+1. Create the Secret directly in the cluster with `kubectl create secret`.
+2. Use an external secret manager.
+3. Keep a placeholder example file in git, but never commit real values.
+
+This repo includes `production-secret.example.yaml` at the project root as a
+safe production-style example outside the `k8s/` folder. Because it is outside
+`k8s/`, it is not applied by `kubectl apply -k k8s`.
+
+Create a production Secret manually:
+
+```bash
+kubectl create secret generic mongodb-credentials \
+  --from-literal=MONGODB_USERNAME=admin \
+  --from-literal=MONGODB_PASSWORD='replace-with-a-strong-password' \
+  -n demo-app
+```
