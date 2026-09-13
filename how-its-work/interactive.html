@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Todo App on Kubernetes — Interactive Flow</title>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  window.mermaid = mermaid;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e3a5f',
+      primaryTextColor: '#e5f0ff',
+      primaryBorderColor: '#3b82f6',
+      lineColor: '#7aa2f7',
+      secondaryColor: '#1a1a2e',
+      tertiaryColor: '#16213e',
+      fontSize: '14px'
+    },
+    flowchart: { curve: 'basis', htmlLabels: true }
+  });
+  window.__mermaidReady = true;
+  window.dispatchEvent(new Event('mermaid-ready'));
+</script>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --bg-2: #0f1524;
+    --bg-3: #131b2e;
+    --panel: #101828;
+    --panel-2: #16203a;
+    --border: #2a3550;
+    --border-glow: #3b82f6;
+    --text: #dbe4f5;
+    --text-dim: #8b9cc4;
+    --text-muted: #5d6c92;
+    --accent: #3b82f6;
+    --accent-2: #22d3ee;
+    --green: #34d399;
+    --green-dim: rgba(52, 211, 153, .12);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, .1);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251, 191, 36, .1);
+    --purple: #a78bfa;
+    --purple-dim: rgba(167, 139, 250, .12);
+    --pink: #f472b6;
+    --mono: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.55;
+    scroll-padding-top: 76px;
+    background-image:
+      radial-gradient(1200px 500px at 80% -10%, rgba(59, 130, 246, .08), transparent 60%),
+      radial-gradient(800px 400px at 10% -20%, rgba(34, 211, 238, .05), transparent 60%);
+    min-height: 100vh;
+  }
+
+  ::selection { background: rgba(59, 130, 246, .35); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg-2); }
+  ::-webkit-scrollbar-thumb { background: #2b3954; border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: .85em; background: rgba(59, 130, 246, .12); padding: 2px 6px; border-radius: 5px; color: #a5d8ff; }
+  pre { font-family: var(--mono); font-size: .82rem; background: #0d1322 !important; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; overflow-x: auto; color: #c9d9f4; line-height: 1.7; }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  /* ---- Hero ---- */
+  .hero {
+    position: relative;
+    padding: 72px 24px 48px;
+    text-align: center;
+    background: linear-gradient(180deg, rgba(59, 130, 246, .12), transparent 70%);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background:
+      radial-gradient(2px 2px at 12% 30%, rgba(255,255,255,.25), transparent),
+      radial-gradient(2px 2px at 28% 72%, rgba(255,255,255,.18), transparent),
+      radial-gradient(1.5px 1.5px at 45% 22%, rgba(255,255,255,.22), transparent),
+      radial-gradient(2px 2px at 63% 80%, rgba(255,255,255,.15), transparent),
+      radial-gradient(1.5px 1.5px at 78% 38%, rgba(255,255,255,.2), transparent),
+      radial-gradient(2px 2px at 90% 65%, rgba(255,255,255,.16), transparent),
+      radial-gradient(1.5px 1.5px at 8% 85%, rgba(255,255,255,.14), transparent);
+  }
+  .badge {
+    display: inline-flex; gap: 8px; align-items: center;
+    background: var(--panel-2); border: 1px solid var(--border-glow);
+    color: var(--accent-2); font-size: .78rem; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: 7px 16px; border-radius: 999px; margin-bottom: 22px;
+    box-shadow: 0 0 18px rgba(59, 130, 246, .25);
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800; letter-spacing: -.02em;
+    background: linear-gradient(120deg, #e0f2fe, #93c5fd 50%, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 14px;
+  }
+  .hero p.sub { max-width: 760px; margin: 0 auto 28px; color: var(--text-dim); font-size: 1.05rem; }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; font-size: .82rem; color: var(--text-dim);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .chip b { color: var(--text); font-weight: 600; }
+
+  /* ---- Topbar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(11, 15, 26, .85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner { max-width: 1500px; margin: 0 auto; display: flex; align-items: center; gap: 16px; padding: 14px 24px; }
+  .topbar .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); white-space: nowrap; }
+  .topbar .logo .icon {
+    width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #04121e; font-weight: 800;
+  }
+  .topbar nav { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+  .topbar nav a {
+    color: var(--text-dim); font-size: .82rem; padding: 6px 12px; border-radius: 7px;
+    border: 1px solid transparent; white-space: nowrap; transition: all .18s;
+  }
+  .topbar nav a:hover { color: var(--text); text-decoration: none; background: var(--panel-2); }
+  .topbar nav a.active { color: var(--accent-2); background: var(--panel-2); border-color: var(--border-glow); }
+
+  /* ---- Layout ---- */
+  .shell { display: flex; max-width: 1500px; margin: 0 auto; align-items: flex-start; }
+  .sidebar {
+    position: sticky; top: 80px; width: 280px; min-width: 280px; max-height: calc(100vh - 100px);
+    overflow-y: auto; padding: 24px 18px 40px; margin-top: 24px; flex-shrink: 0;
+  }
+  .main { flex: 1; min-width: 280px; }
+
+  /* Sidebar nav */
+  .section-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .14em; color: var(--text-muted); margin: 0 0 12px 8px; }
+  .side-nav-link {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    padding: 9px 12px; margin-bottom: 3px; border-radius: 9px; cursor: pointer;
+    color: var(--text-dim); font-size: .88rem; border: 1px solid transparent;
+    transition: all .15s; background: transparent; font-family: var(--sans);
+  }
+  .side-nav-link .num {
+    width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+    font-size: .7rem; font-weight: 700; font-family: var(--mono);
+    background: var(--panel-2); color: var(--text-muted); border: 1px solid var(--border);
+    flex-shrink: 0; transition: all .15s;
+  }
+  .side-nav-link:hover { color: var(--text); background: var(--panel-2); }
+  .side-nav-link.active { color: var(--accent-2); background: rgba(59, 130, 246, .1); border-color: rgba(59, 130, 246, .35); }
+  .side-nav-link.active .num { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ---- Sections ---- */
+  .flow-section { margin-bottom: 64px; }
+  .flow-section h2 {
+    font-size: 1.7rem; font-weight: 700; margin: 0 0 8px; letter-spacing: -.01em;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .flow-section h2 .sec-num {
+    width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+    background: linear-gradient(135deg, rgba(59,130,246,.25), rgba(34,211,238,.15));
+    border: 1px solid var(--border-glow); font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--accent-2);
+    flex-shrink: 0;
+  }
+  .flow-section > .desc { color: var(--text-dim); margin: 6px 0 24px; max-width: 900px; }
+  .flow-section h3 { font-size: 1.12rem; margin: 34px 0 14px; font-weight: 600; color: #bbd6ff; display: flex; align-items: center; gap: 10px; }
+  .flow-section h3::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ---- Cards ---- */
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; margin: 18px 0; transition: border-color .2s; }
+  .card.hover-glow:hover { border-color: var(--border-glow); box-shadow: 0 4px 28px rgba(59, 130, 246, .12); }
+  .card h4 { font-size: .95rem; margin-bottom: 10px; color: var(--accent-2); }
+  .panel-title { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-weight: 700; font-size: .98rem; }
+  .panel-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+
+  /* ---- Mermaid containers ---- */
+  .mermaid-box {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px 18px 12px; margin: 18px 0; overflow-x: auto;
+  }
+  .mermaid-box .mermaid-out { text-align: center; min-width: 620px; }
+  .mermaid-box.tight .mermaid-out { min-width: 400px; }
+  .mermaid-box svg { max-width: 100%; height: auto; }
+
+  /* ---- Resource cards ---- */
+  .resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin: 18px 0; }
+  .resource-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; transition: all .18s; position: relative; overflow: hidden;
+  }
+  .resource-card::before {
+    content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--rc, var(--accent)), transparent); opacity: .7;
+  }
+  .resource-card:hover { border-color: var(--rc, var(--accent)); transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,.3); }
+  .resource-card .kind {
+    font-size: .7rem; font-family: var(--mono); letter-spacing: .08em; text-transform: uppercase;
+    color: var(--rc, var(--accent)); font-weight: 600; margin-bottom: 8px;
+  }
+  .resource-card .name { font-weight: 700; font-size: 1.02rem; margin-bottom: 8px; color: var(--text); }
+  .resource-card .desc { font-size: .83rem; color: var(--text-dim); line-height: 1.5; }
+
+  /* ---- Tables ---- */
+  .table-wrap { overflow-x: auto; margin: 16px 0; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: .875rem; min-width: 560px; }
+  thead th {
+    background: var(--panel-2); color: #b9d2ff; text-align: left; font-weight: 600;
+    padding: 11px 16px; white-space: nowrap; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em;
+  }
+  tbody td { padding: 10px 16px; border-top: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+  tbody tr:hover td { background: rgba(59, 130, 246, .04); }
+
+  /* ---- Tags ---- */
+  .tag {
+    display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .72rem;
+    font-weight: 600; font-family: var(--mono); letter-spacing: .02em;
+  }
+  .tag.green { background: var(--green-dim); color: var(--green); }
+  .tag.red { background: var(--red-dim); color: var(--red); }
+  .tag.amber { background: var(--amber-dim); color: var(--amber); }
+  .tag.blue { background: rgba(59,130,246,.12); color: #7fb8ff; }
+  .tag.purple { background: var(--purple-dim); color: var(--purple); }
+  .tag.pink { background: rgba(244,114,182,.12); color: var(--pink); }
+
+  /* ---- Step-through flow ---- */
+  .flow-steps { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+  .flow-step {
+    display: flex; gap: 14px; align-items: flex-start; padding: 13px 16px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    opacity: .42; filter: grayscale(.5); transition: all .25s; transform: translateX(-6px);
+  }
+  .flow-step .step-num {
+    width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+    display: grid; place-items: center; font-family: var(--mono); font-size: .75rem; font-weight: 700;
+    background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted);
+  }
+  .flow-step .step-body { flex: 1; font-size: .9rem; color: var(--text-dim); }
+  .flow-step .step-title { font-weight: 600; color: var(--text); margin-bottom: 2px; font-size: .92rem; display: block; }
+  .flow-step.reached { opacity: 1; filter: none; transform: translateX(0); border-color: rgba(59, 130, 246, .35); }
+  .flow-step.reached .step-num { background: rgba(59,130,246,.2); border-color: var(--accent); color: #a5d8ff; }
+  .flow-step.current {
+    border-color: var(--accent); background: rgba(59, 130, 246, .08);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 24px rgba(59, 130, 246, .15);
+  }
+  .flow-step.current .step-num { background: var(--accent); color: #fff; box-shadow: 0 0 12px rgba(59,130,246,.6); }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 22px 0 10px; }
+  button.btn {
+    display: inline-flex; align-items: center; gap: 8px; font-family: var(--sans);
+    font-size: .85rem; font-weight: 600; padding: 9px 18px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    transition: all .15s;
+  }
+  button.btn:hover { border-color: var(--border-glow); }
+  button.btn.primary { background: linear-gradient(135deg, var(--accent), #2563eb); color: #fff; border-color: transparent; }
+  button.btn.primary:hover { box-shadow: 0 4px 18px rgba(59,130,246,.4); }
+  button.btn:active { transform: scale(.98); }
+
+  /* ---- Command blocks ---- */
+  .cmd-block { margin: 18px 0; border-radius: 14px; border: 1px solid var(--border); overflow: hidden; background: var(--bg-3); }
+  .cmd-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 14px; background: var(--panel-2); border-bottom: 1px solid var(--border);
+  }
+  .cmd-head .label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .1em; font-family: var(--mono); }
+  .cmd-head .copy-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    font-size: .74rem; padding: 4px 12px; border-radius: 7px; cursor: pointer; font-family: var(--sans);
+    transition: all .15s; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .cmd-head .copy-btn:hover { color: var(--accent-2); border-color: var(--border-glow); }
+  .cmd-block pre { border: none; border-radius: 0; background: var(--bg-3) !important; padding: 14px; }
+  .cmd-block pre code { color: #bee3ff; }
+
+  /* ---- Tabs ---- */
+  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin: 24px 0 0; flex-wrap: wrap; }
+  .tab {
+    padding: 10px 18px; cursor: pointer; border: none; background: transparent;
+    color: var(--text-dim); font-size: .88rem; font-weight: 600; font-family: var(--sans);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent-2); border-bottom-color: var(--accent-2); background: linear-gradient(0deg, rgba(59,130,246,.07), transparent); }
+  .tab-panel { display: none; padding: 20px 4px 10px; }
+  .tab-panel.active { display: block; animation: fadeIn .3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ---- Compare cards ---- */
+  .compare-grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 18px 0; }
+  .compare-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .compare-card .icon { font-size: 1.4rem; margin-bottom: 8px; }
+  .compare-card .ttl { font-weight: 700; font-size: .92rem; margin-bottom: 6px; }
+  .compare-card .ttl-sub { color: var(--text-dim); font-size: .84rem; }
+
+  /* ---- Callouts ---- */
+  .callout {
+    display: flex; gap: 12px; padding: 14px 18px; border-radius: 12px; margin: 16px 0;
+    border: 1px solid; font-size: .89rem;
+  }
+  .callout .ico { font-size: 1.2rem; line-height: 1.3; flex-shrink: 0; }
+  .callout.blue { background: rgba(59,130,246,.07); border-color: rgba(59,130,246,.3); color: #bedcff; }
+  .callout.green { background: var(--green-dim); border-color: rgba(52,211,153,.3); color: #b8ecd4; }
+  .callout.amber { background: var(--amber-dim); border-color: rgba(251,191,36,.3); color: #fce5b6; }
+  .callout.purple { background: var(--purple-dim); border-color: rgba(167,139,250,.3); color: #ddd0ff; }
+
+  /* ---- Method pills ---- */
+  .method-pill { display: inline-block; min-width: 62px; text-align: center; font-family: var(--mono); font-size: .72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .method-pill.get { background: rgba(34,211,238,.12); color: var(--accent-2); }
+  .method-pill.post { background: rgba(52,211,153,.12); color: var(--green); }
+  .method-pill.patch { background: rgba(251,191,36,.12); color: var(--amber); }
+  .method-pill.delete { background: rgba(248,113,113,.12); color: var(--red); }
+
+  /* ---- Misc ---- */
+  .footer { text-align: center; padding: 36px 20px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: .85rem; }
+  .progress-bar {
+    position: fixed; top: 0; left: 0; height: 3px; z-index: 100; width: 0;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .1s; box-shadow: 0 0 12px rgba(59,130,246,.5);
+  }
+  .mini-monospace { font-family: var(--mono); font-size: .82em; color: #9fc4ff; }
+  .section-list { list-style: none; }
+  .section-list li { padding: 8px 14px; border-left: 3px solid var(--border); margin-bottom: 8px; background: var(--panel); border-radius: 0 10px 10px 0; font-size: .88rem; color: var(--text-dim); }
+  .section-list li b { color: var(--text); }
+  .section-list li .arrow { color: var(--accent-2); font-family: var(--mono); }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 1100px) {
+    .sidebar { display: none; }
+    .main { padding: 24px 18px 60px; }
+  }
+  @media (min-width: 1101px) {
+    .main { padding: 32px 36px 80px; }
+  }
+  @media (max-width: 768px) {
+    .topbar nav { display: none; }
+    .hero { padding: 56px 18px 36px; }
+    .mermaid-box .mermaid-out { min-width: 480px; }
+  }
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- ============ TOP BAR ============ -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">
+      <span class="icon">☸</span>
+      <span>Todo App on Kubernetes</span>
+    </div>
+    <nav id="topNav">
+      <a href="#arch" data-sec="1">Architecture</a>
+      <a href="#components" data-sec="2">Components</a>
+      <a href="#resources" data-sec="3">Resources</a>
+      <a href="#request-flow" data-sec="4">Request Flow</a>
+      <a href="#deploy" data-sec="5">Deploy</a>
+      <a href="#config" data-sec="6">Config</a>
+      <a href="#probes" data-sec="7">Probes</a>
+      <a href="#local" data-sec="8">Local vs Cluster</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="badge">☸ Interactive Guide</div>
+  <h1>Project Flow — Todo App on Kubernetes</h1>
+  <p class="sub">A React frontend • Node.js/Express backend • MongoDB — all running on Minikube Kubernetes under the <code>demo-app</code> namespace. Follow the flow: click through the interactive request traversal, copy deployment commands, and explore the resource map.</p>
+  <div class="hero-meta">
+    <span class="chip"><span>🖥️</span> <b>React (Vite + nginx)</b></span>
+    <span class="chip"><span>⚡</span> <b>Node.js / Express</b></span>
+    <span class="chip"><span>🍃</span> <b>MongoDB 7.0</b></span>
+    <span class="chip"><span>☸️</span> <b>Minikube</b> · <b>demo-app</b></span>
+  </div>
+</section>
+
+<div class="shell">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="section-label">On this page</div>
+    <button class="side-nav-link active" onclick="goTo('arch')"><span class="num">1</span> System Architecture</button>
+    <button class="side-nav-link" onclick="goTo('components')"><span class="num">2</span> Component Breakdown</button>
+    <button class="side-nav-link" onclick="goTo('resources')"><span class="num">3</span> K8s Resource Map</button>
+    <button class="side-nav-link" onclick="goTo('request-flow')"><span class="num">4</span> Request Flow</button>
+    <button class="side-nav-link" onclick="goTo('deploy')"><span class="num">5</span> Deployment Flow</button>
+    <button class="side-nav-link" onclick="goTo('config')"><span class="num">6</span> Config & Secrets</button>
+    <button class="side-nav-link" onclick="goTo('probes')"><span class="num">7</span> Health Checks</button>
+    <button class="side-nav-link" onclick="goTo('local')"><span class="num">8</span> Local vs Cluster</button>
+
+    <div class="section-label" style="margin-top: 28px;">Quick Actions</div>
+    <button class="btn primary" style="width:100%; margin-bottom:8px; justify-content:center;" onclick="copyAllCommands()">📋 Copy All Commands</button>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+
+    <!-- ===== SECTION 1: ARCHITECTURE ===== -->
+    <section class="flow-section" id="arch" data-section="1">
+      <h2><span class="sec-num">1</span> System Architecture</h2>
+      <p class="desc">A single Ingress entry point fans traffic into three tiers — frontend, backend, and data — all inside the <code>demo-app</code> namespace.</p>
+
+      <div class="mermaid-box">
+        <div class="mermaid-out">
+        <script type="text/mermaid">
+flowchart TB
+    subgraph Browser["🖥️ Browser"]
+        U[User]
+    end
+
+    subgraph Cluster["☸️ Minikube Cluster — namespace: demo-app"]
+        ING["🌐 Ingress (nginx)<br/>Entry Point"]
+
+        subgraph FrontendLayer["Frontend Tier"]
+            FSVC["Service: frontend<br/>port 80"]
+            FPOD["Pod: frontend<br/>nginx:alpine :80<br/>react-demo:latest"]
+        end
+
+        subgraph BackendLayer["Backend Tier"]
+            BSVC["Service: backend<br/>port 5000"]
+            BPOD["Pod: backend<br/>node:20-alpine :5000<br/>node-demo:latest"]
+        end
+
+        subgraph DataLayer["Data Tier"]
+            MSVC["Service: mongodb<br/>ClusterIP :27017"]
+            MPOD["Pod: mongodb-0<br/>mongo:7.0 :27017<br/>StatefulSet"]
+            PVC["PVC: mongodb-data<br/>1Gi persistent volume"]
+        end
+
+        CFG["ConfigMap: backend-config<br/>NODE_ENV, PORT, MONGODB_URI"]
+        SEC2["Secret: mongodb-credentials<br/>MONGODB_USERNAME, MONGODB_PASSWORD"]
+    end
+
+    U -->|"http://&lt;minikube-ip&gt;/"| ING
+    ING -->|"path: / → frontend"| FSVC
+    ING -->|"path: /api → backend"| BSVC
+    FSVC --> FPOD
+    BSVC --> BPOD
+    BPOD -->|"mongodb://mongodb:27017"| MSVC
+    MSVC --> MPOD
+    MPOD --> PVC
+    CFG -.->|"envFrom"| BPOD
+    SEC2 -.->|"envFrom"| BPOD
+    SEC2 -.->|"MONGO_INITDB_*"| MPOD
+        </script>
+        </div>
+      </div>
+
+      <div class="callout blue">
+        <span class="ico">💡</span>
+        <span><b>Key insight:</b> the Ingress <code>/api</code> rule is more specific than <code>/</code>, so API traffic never falls through to the frontend. The backend reaches MongoDB by the <em>Service DNS name</em> <code>mongodb</code>, not a Pod IP.</span>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 2: COMPONENTS ============ -->
+    <section class="flow-section" id="components" data-section="2">
+      <h2><span class="sec-num">2</span> Component Breakdown</h2>
+      <p class="desc">Three components, each with its own build and runtime pipeline. Click the tabs to inspect each one.</p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="tab-front">🖥️ Frontend</button>
+        <button class="tab" data-tab="tab-back">⚡ Backend</button>
+        <button class="tab" data-tab="tab-mongo">🍃 MongoDB</button>
+      </div>
+
+      <!-- Frontend -->
+      <div class="tab-panel active" id="tab-front">
+        <div class="mermaid-box tight">
+          <div class="mermaid-out">
+          <script type="text/mermaid">
+flowchart LR
+    subgraph FEnd["Frontend — Vite + React SPA"]
+        subgraph Source["Source Code"]
+            MAIN["main.jsx<br/>ReactDOM.createRoot"]
+            APP["App.jsx<br/>Todo List UI"]
+            CSS2["index.css<br/>Styling"]
+        end
+
+        subgraph BuildP["Build Pipeline"]
+            VITE["Vite Build<br/>npm run build"]
+            DIST["dist/<br/>Static HTML/JS/CSS"]
+        end
+
+        subgraph Runtime["Runtime Container"]
+            NGINX["nginx:alpine<br/>port 80"]
+            CONF["nginx.conf<br/>try_files → index.html"]
+        end
+    end
+
+    MAIN --> APP
+    APP --> CSS2
+    APP -->|"fetch('/api/todos')"| API["/api/* routes"]
+    VITE --> DIST
+    DIST --> NGINX
+    CONF --> NGINX
+          </script>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Component</th><th>Role</th></tr></thead>
+            <tbody>
+              <tr><td><code>main.jsx</code></td><td>React entry point — mounts <code><App /></code> into <code>#root</code></td></tr>
+              <tr><td><code>App.jsx</code></td><td>Todo list UI — load, add, toggle, delete todos via relative <code>/api/*</code> URLs</td></tr>
+              <tr><td><code>vite.config.js</code></td><td>Dev proxy: <code>/api</code> → <code>http://localhost:5000</code> (local dev only)</td></tr>
+              <tr><td><code>nginx.conf</code></td><td>SPA fallback: <code>try_files $uri /index.html</code></td></tr>
+              <tr><td><code>Dockerfile</code></td><td>Multi-stage: build with node → serve with nginx on port 80</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout green">
+          <span class="ico">📦</span>
+          <span><b>Final image contains no Node.js or source code</b> — just nginx + static files from <code>dist/</code>. nginx does <b>not</b> proxy <code>/api</code>; the Ingress handles that one layer up.</span>
+        </div>
+      </div>
+
+      <!-- Backend -->
+      <div class="tab-panel" id="tab-back">
+        <div class="mermaid-box tight">
+          <div class="mermaid-out">
+          <script type="text/mermaid">
+flowchart LR
+    subgraph BACKEND["Backend — Node.js + Express"]
+        subgraph Server["server.js"]
+            EXPRESS["Express App"]
+            MONGOOSE["Mongoose ODM"]
+            SCHEMA["Todo Schema<br/>{ text, done, timestamps }"]
+            ROUTES["REST Routes"]
+        end
+
+        subgraph Endpoints["API Endpoints"]
+            H["GET /api/health"]
+            L["GET /api/todos"]
+            C["POST /api/todos"]
+            U["PATCH /api/todos/:id"]
+            D["DELETE /api/todos/:id"]
+        end
+
+        subgraph Env["Environment (process.env)"]
+            PORT["PORT = 5000"]
+            URI["MONGODB_URI"]
+            USER["MONGODB_USERNAME"]
+            PASS["MONGODB_PASSWORD"]
+        end
+    end
+
+    EXPRESS --> MONGOOSE
+    MONGOOSE --> SCHEMA
+    EXPRESS --> ROUTES
+    ROUTES --> H
+    ROUTES --> L
+    ROUTES --> C
+    ROUTES --> U
+    ROUTES --> D
+    Env -.-> EXPRESS
+    MONGOOSE -->|"connect(uri, { auth })"| MONGODB[("MongoDB<br/>mongodb:27017")]
+          </script>
+          </div>
+        </div>
+
+        <h3>API Contract</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Path</th><th>Purpose</th><th>Success</th><th>Error</th></tr></thead>
+            <tbody>
+              <tr><td><span class="method-pill get">GET</span></td><td class="mini-monospace">/api/health</td><td>Readiness/liveness probe</td><td><span class="tag green">200</span></td><td><span class="tag red">503</span></td></tr>
+              <tr><td><span class="method-pill get">GET</span></td><td class="mini-monospace">/api/todos</td><td>List all todos (newest first)</td><td><span class="tag green">200</span></td><td><span class="tag amber">—</span></td></tr>
+              <tr><td><span class="method-pill post">POST</span></td><td class="mini-monospace">/api/todos</td><td>Create <code>{ text }</code></td><td><span class="tag green">201</span></td><td><span class="tag red">400</span> empty text</td></tr>
+              <tr><td><span class="method-pill patch">PATCH</span></td><td class="mini-monospace">/api/todos/:id</td><td>Update <code>text</code> / <code>done</code></td><td><span class="tag green">200</span></td><td><span class="tag red">404</span></td></tr>
+              <tr><td><span class="method-pill delete">DELETE</span></td><td class="mini-monospace">/api/todos/:id</td><td>Delete a todo</td><td><span class="tag green">204</span></td><td><span class="tag red">404</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout blue">
+          <span class="ico">🔒</span>
+          <span><b>Startup behavior:</b> <code>await mongoose.connect(...)</code> happens <em>before</em> the HTTP server listens. If Mongo isn't reachable the container crashes and Kubernetes restarts it — a deliberate fail-fast design.</span>
+        </div>
+      </div>
+
+      <!-- Mongo -->
+      <div class="tab-panel" id="tab-mongo">
+        <div class="mermaid-box tight">
+          <div class="mermaid-out">
+          <script type="text/mermaid">
+flowchart LR
+    subgraph MONGO["MongoDB — StatefulSet"]
+        STS["StatefulSet: mongodb<br/>replicas: 1"]
+        POD["Pod: mongodb-0<br/>mongo:7.0"]
+        SVC["Service: mongodb<br/>ClusterIP :27017"]
+        VCT["volumeClaimTemplates<br/>1Gi"]
+        PVC2["PVC: mongodb-data-mongodb-0"]
+        VOL["/data/db"]
+    end
+
+    STS --> POD
+    SVC --> POD
+    POD --> VCT
+    VCT --> PVC2
+    PVC2 --> VOL
+          </script>
+          </div>
+        </div>
+
+        <ul class="section-list">
+          <li><b>StatefulSet</b> (not Deployment) <span class="arrow">→</span> stable pod name <span class="tag blue">mongodb-0</span> and a stable PVC</li>
+          <li><b>Readiness probe</b> authenticates via <code>mongosh</code> <span class="arrow">→</span> not just a TCP check</li>
+          <li><b>Liveness probe</b> uses a TCP socket check <span class="arrow">→</span> port :27017 reachable</li>
+          <li><b>Root user</b> created on first boot <span class="arrow">→</span> from <code>mongodb-credentials</code> Secret</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 3: RESOURCE MAP ============ -->
+    <section class="flow-section" id="resources" data-section="3">
+      <h2><span class="sec-num">3</span> Kubernetes Resource Map</h2>
+      <p class="desc">Everything deployed by <code>kubectl apply -k k8s</code>. Hover the cards and the diagram to see how they connect.</p>
+
+      <div class="mermaid-box">
+        <div class="mermaid-out">
+        <script type="text/mermaid">
+flowchart TB
+    NS["Namespace: demo-app"] --> CFG["ConfigMap<br/>backend-config"]
+    NS --> SEC["Secret<br/>mongodb-credentials"]
+    NS --> STS["StatefulSet<br/>mongodb"]
+    NS --> BDEP["Deployment<br/>backend"]
+    NS --> FDEP["Deployment<br/>frontend"]
+    NS --> ING2["Ingress<br/>demo-app (nginx)"]
+
+    STS --> BSVC["Service<br/>mongodb :27017"]
+    BDEP --> BKSVC["Service<br/>backend :5000"]
+    FDEP --> FKSVC["Service<br/>frontend :80"]
+
+    CFG -->|"envFrom"| BDEP
+    SEC -->|"envFrom"| BDEP
+    SEC -->|"MONGO_INITDB_*"| STS
+
+    ING2 -->|"/api →"| BKSVC
+    ING2 -->|"/ →"| FKSVC
+
+    BKSVC -->|"targetPort: http"| BDEP
+    FKSVC -->|"targetPort: http"| FDEP
+    BSVC -->|"targetPort: mongodb"| STS
+        </script>
+        </div>
+      </div>
+
+      <h3>Resource inventory</h3>
+      <div class="resource-grid" id="resourceGrid"></div>
+
+      <div class="callout purple">
+        <span class="ico">🧩</span>
+        <span><b>Named ports:</b> the backend/frontend Services target <code>targetPort: http</code> instead of a raw number — if the container port ever changes, only one field changes.</span>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 4: REQUEST FLOW ============ -->
+    <section class="flow-section" id="request-flow" data-section="4">
+      <h2><span class="sec-num">4</span> Request Flow (End-to-End)</h2>
+      <p class="desc">Watch a request travel from the browser all the way down to the PVC. Step through each interaction manually or auto-play it.</p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="tab-req-load">🌐 Load Page</button>
+        <button class="tab" data-tab="tab-req-api">📡 GET /api/todos</button>
+        <button class="tab" data-tab="tab-req-crud">✏️ Add / Toggle / Delete</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-req-load">
+        <div class="flow-steps" data-flow-group="load">
+          <div class="flow-step" data-step="1">
+            <span class="step-num">1</span>
+            <div class="step-body"><span class="step-title">Browser → Ingress</span>GET <code>http://&lt;minikube-ip&gt;/</code></div>
+          </div>
+          <div class="flow-step" data-step="2">
+            <span class="step-num">2</span>
+            <div class="step-body"><span class="step-title">Ingress routes</span>path <code>/</code> matches the frontend rule</div>
+          </div>
+          <div class="flow-step" data-step="3">
+            <span class="step-num">3</span>
+            <div class="step-body"><span class="step-title">Frontend Service</span>routes to the nginx Pod :80</div>
+          </div>
+          <div class="flow-step" data-step="4">
+            <span class="step-num">4</span>
+            <div class="step-body"><span class="step-title">nginx responds</span>returns <code>index.html</code> + JS bundle</div>
+          </div>
+          <div class="flow-step" data-step="5">
+            <span class="step-num">5</span>
+            <div class="step-body"><span class="step-title">React mounts</span>browser fetches <code>/api/todos</code> automatically</div>
+          </div>
+        </div>
+        <div class="cta-row">
+          <button class="btn primary" onclick="playFlow('load')">▶ Play</button>
+          <button class="btn" onclick="resetFlow('load')">Reset</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-req-api">
+        <div class="flow-steps" data-flow-group="api">
+          <div class="flow-step" data-step="1">
+            <span class="step-num">1</span>
+            <div class="step-body"><span class="step-title">Browser → Ingress</span>GET <code>/api/todos</code></div>
+          </div>
+          <div class="flow-step" data-step="2">
+            <span class="step-num">2</span>
+            <div class="step-body"><span class="step-title">Ingress matches /api</span>most specific prefix wins over <code>/</code></div>
+          </div>
+          <div class="flow-step" data-step="3">
+            <span class="step-num">3</span>
+            <div class="step-body"><span class="step-title">Backend Service</span>routes to Node Pod :5000</div>
+          </div>
+          <div class="flow-step" data-step="4">
+            <span class="step-num">4</span>
+            <div class="step-body"><span class="step-title">Express</span>handles <code>GET /api/todos</code></div>
+          </div>
+          <div class="flow-step" data-step="5">
+            <span class="step-num">5</span>
+            <div class="step-body"><span class="step-title">Mongoose query</span>to <code>mongodb://mongodb:27017</code></div>
+          </div>
+          <div class="flow-step" data-step="6">
+            <span class="step-num">6</span>
+            <div class="step-body"><span class="step-title">DNS resolve</span><code>mongodb</code> Service → Pod <code>mongodb-0</code></div>
+          </div>
+          <div class="flow-step" data-step="7">
+            <span class="step-num">7</span>
+            <div class="step-body"><span class="step-title">Persistent volume</span>read/write <code>/data/db</code> → PVC-backed</div>
+          </div>
+          <div class="flow-step" data-step="8">
+            <span class="step-num">8</span>
+            <div class="step-body"><span class="step-title">Response path</span>JSON returns along the same chain → React renders the todo list</div>
+          </div>
+        </div>
+        <div class="cta-row">
+          <button class="btn primary" onclick="playFlow('api')">▶ Play</button>
+          <button class="btn" onclick="resetFlow('api')">Reset</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-req-crud">
+        <div class="flow-steps" data-flow-group="crud">
+          <div class="flow-step" data-step="1">
+            <span class="step-num">1</span>
+            <div class="step-body"><span class="step-title">POST /api/todos</span>browser sends <code>{ text }</code> → Ingress → backend Pod</div>
+          </div>
+          <div class="flow-step" data-step="2">
+            <span class="step-num">2</span>
+            <div class="step-body"><span class="step-title"><code>Todo.create</code></span>MongoDB saves document → <span class="tag green">201</span> + todo JSON back</div>
+          </div>
+          <div class="flow-step" data-step="3">
+            <span class="step-num">3</span>
+            <div class="step-body"><span class="step-title">PATCH /api/todos/:id</span>update <code>{ done }</code> via <code>findByIdAndUpdate</code> → <span class="tag green">200</span></div>
+          </div>
+          <div class="flow-step" data-step="4">
+            <span class="step-num">4</span>
+            <div class="step-body"><span class="step-title">DELETE /api/todos/:id</span><code>findByIdAndDelete</code> → <span class="tag green">204</span> No Content</div>
+          </div>
+        </div>
+        <div class="cta-row">
+          <button class="btn primary" onclick="playFlow('crud')">▶ Play</button>
+          <button class="btn" onclick="resetFlow('crud')">Reset</button>
+        </div>
+        <div class="callout amber">
+          <span class="ico">🔁</span>
+          <span><b>Symmetry:</b> all four operations (GET/POST/PATCH/DELETE) traverse the identical path — Browser → Ingress → Service → Pod. The frontend never talks to Mongo or to a Pod directly, so replicas can scale/restart invisibly.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 5: DEPLOYMENT ============ -->
+    <section class="flow-section" id="deploy" data-section="5">
+      <h2><span class="sec-num">5</span> Deployment / Build Flow</h2>
+      <p class="desc">Build the two images, apply everything via Kustomize, verify rollouts, then expose the cluster with a tunnel.</p>
+
+      <div class="mermaid-box">
+        <div class="mermaid-out">
+        <script type="text/mermaid">
+flowchart LR
+    subgraph Build["⛏️ Build Images"]
+        FB["minikube image build<br/>-t react-demo:latest<br/>./frontend"]
+        BB["minikube image build<br/>-t node-demo:latest<br/>./backend"]
+    end
+
+    subgraph Deploy["☸️ Deploy to Minikube"]
+        K["kubectl apply -k k8s"]
+        N["namespace.yaml"]
+        C["backend-config.yaml"]
+        S["mongodb-secret.yaml"]
+        M["mongodb.yaml"]
+        B["backend.yaml"]
+        F["frontend.yaml"]
+        I["ingress.yaml"]
+    end
+
+    subgraph Verify["✅ Verify Rollouts"]
+        R1["rollout status<br/>statefulset/mongodb"]
+        R2["rollout status<br/>deployment/backend"]
+        R3["rollout status<br/>deployment/frontend"]
+    end
+
+    subgraph Access["🌐 Access App"]
+        IP["minikube ip"]
+        TUN["minikube tunnel<br/>(Docker driver)"]
+    end
+
+    FB --> K
+    BB --> K
+    K --> N
+    K --> C
+    K --> S
+    K --> M
+    K --> B
+    K --> F
+    K --> I
+    M --> R1
+    B --> R2
+    F --> R3
+    R1 --> IP
+    R2 --> IP
+    R3 --> IP
+    IP --> TUN
+        </script>
+        </div>
+      </div>
+
+      <h3>Deployment order (kustomization)</h3>
+      <div class="mermaid-box tight">
+        <div class="mermaid-out">
+        <script type="text/mermaid">
+flowchart TB
+    A["1. namespace.yaml<br/>creates demo-app"] --> B2["2. backend-config.yaml<br/>ConfigMap"]
+    B2 --> C2["3. mongodb-secret.yaml<br/>Secret"]
+    C2 --> D2["4. mongodb.yaml<br/>StatefulSet + Service"]
+    D2 --> E2["5. backend.yaml<br/>Deployment + Service"]
+    E2 --> F2["6. frontend.yaml<br/>Deployment + Service"]
+    F2 --> G2["7. ingress.yaml<br/>Ingress routing"]
+        </script>
+        </div>
+      </div>
+
+      <h3>Quick reference commands</h3>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Build Images</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Build images into Minikube
+minikube image build -t react-demo:latest ./frontend
+minikube image build -t node-demo:latest ./backend</code></pre>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Deploy Everything</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Deploy everything
+kubectl apply -k k8s</code></pre>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Verify Rollouts</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Verify rollouts
+kubectl rollout status statefulset/mongodb -n demo-app
+kubectl rollout status deployment/backend -n demo-app
+kubectl rollout status deployment/frontend -n demo-app</code></pre>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Access & Inspect</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Access
+minikube ip
+minikube tunnel   # only for Docker driver
+
+# Inspect
+kubectl get all,ingress,pvc -n demo-app
+kubectl logs deployment/backend -n demo-app</code></pre>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Cleanup</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Cleanup
+kubectl delete -k k8s</code></pre>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 6: CONFIG & SECRETS ============ -->
+    <section class="flow-section" id="config" data-section="6">
+      <h2><span class="sec-num">6</span> Configuration & Secrets Flow</h2>
+      <p class="desc">The backend gets everything from <code>process.env</code>. ConfigMap and Secret both get injected via <code>envFrom</code> — one string, one credentials.</p>
+
+      <div class="mermaid-box">
+        <div class="mermaid-out">
+        <script type="text/mermaid">
+flowchart LR
+    subgraph ConfigSources["Configuration Sources"]
+        CM["ConfigMap: backend-config<br/>• NODE_ENV=development<br/>• PORT=5000<br/>• MONGODB_URI=mongodb://mongodb:27017/demo?authSource=admin"]
+        SC["Secret: mongodb-credentials<br/>• MONGODB_USERNAME=admin<br/>• MONGODB_PASSWORD=Admin@123"]
+    end
+
+    subgraph Consumers["Consumers"]
+        BE["Backend Pod<br/>process.env"]
+        MO["MongoDB Pod<br/>MONGO_INITDB_ROOT_USERNAME<br/>MONGO_INITDB_ROOT_PASSWORD"]
+    end
+
+    CM -->|"envFrom: configMapRef"| BE
+    SC -->|"envFrom: secretRef"| BE
+    SC -->|"secretKeyRef"| MO
+
+    BE -->|"mongoose.connect(URI, { auth })"| MO
+        </script>
+        </div>
+      </div>
+
+      <h3>Why split ConfigMap and Secret?</h3>
+      <div class="compare-grid-cards">
+        <div class="compare-card">
+          <div class="icon">🗺️</div>
+          <div class="ttl">ConfigMap</div>
+          <div class="ttl-sub">Holds the connection <b>string</b> — non-sensitive, safe to view/commit.</div>
+        </div>
+        <div class="compare-card">
+          <div class="icon">🔐</div>
+          <div class="ttl">Secret</div>
+          <div class="ttl-sub">Holds the <b>credentials</b> — base64-encoded at rest, consumed by both Mongo (root user) and backend (auth).</div>
+        </div>
+        <div class="compare-card">
+          <div class="icon">🧩</div>
+          <div class="ttl">No inline password</div>
+          <div class="ttl-sub">Mongoose <code>connect(uri, { auth: {...} })</code> — password is never embedded in the connection string itself.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 7: PROBES ============ -->
+    <section class="flow-section" id="probes" data-section="7">
+      <h2><span class="sec-num">7</span> Health Check & Probe Flow</h2>
+      <p class="desc">Each pod uses readiness + liveness probes. The backend probes hit <code>/api/health</code> — the exact same route <code>server.js</code> defines.</p>
+
+      <div class="mermaid-box">
+        <div class="mermaid-out">
+        <script type="text/mermaid">
+flowchart TB
+    subgraph BackendProbes["Backend Pod Probes"]
+        BR["readinessProbe<br/>GET /api/health<br/>initialDelay: 5s, period: 5s"]
+        BL["livenessProbe<br/>GET /api/health<br/>initialDelay: 15s, period: 10s"]
+    end
+
+    subgraph FrontendProbes["Frontend Pod Probes"]
+        FR["readinessProbe<br/>GET /<br/>initialDelay: 5s, period: 5s"]
+        FL["livenessProbe<br/>GET /<br/>initialDelay: 15s, period: 10s"]
+    end
+
+    subgraph MongoProbes["MongoDB Pod Probes"]
+        MR["readinessProbe<br/>mongosh ping (auth)<br/>initialDelay: 5s, period: 5s"]
+        ML["livenessProbe<br/>TCP socket :27017<br/>initialDelay: 15s, period: 10s"]
+    end
+
+    BR -->|"200 = ready<br/>503 = not ready"| BE["Backend Pod"]
+    BL -->|"200 = alive<br/>503 = restart"| BE
+    FR -->|"200 = ready"| FE["Frontend Pod"]
+    FL -->|"200 = alive"| FE
+    MR -->|"ping ok = ready"| MP["MongoDB Pod"]
+    ML -->|"port open = alive"| MP
+        </script>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pod</th><th>Probe</th><th>Check</th><th>Failure behavior</th></tr></thead>
+          <tbody>
+            <tr>
+              <td rowspan="2"><span class="tag blue">Backend</span></td>
+              <td>readiness</td><td class="mini-monospace">GET /api/health</td>
+              <td>503 → removed from Service endpoints</td>
+            </tr>
+            <tr>
+              <td>liveness</td><td class="mini-monospace">GET /api/health</td>
+              <td>503 → Pod restarted</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><span class="tag purple">Frontend</span></td>
+              <td>readiness</td><td class="mini-monospace">GET /</td>
+              <td>Non-200 → no traffic routed</td>
+            </tr>
+            <tr>
+              <td>liveness</td><td class="mini-monospace">GET /</td>
+              <td>Non-200 → Pod restarted</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><span class="tag green">MongoDB</span></td>
+              <td>readiness</td><td class="mini-monospace">mongosh ping (auth)</td>
+              <td>Auth failing → no traffic routed</td>
+            </tr>
+            <tr>
+              <td>liveness</td><td class="mini-monospace">TCP :27017</td>
+              <td>Port closed → Pod restarted</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout green">
+        <span class="ico">🩺</span>
+        <span><b>MongoDB's readiness probe actually authenticates</b> (<code>db.adminCommand({ping:1})</code>) rather than just checking the port — Kubernetes won't route traffic to Mongo until auth is genuinely working.</span>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 8: LOCAL VS CLUSTER ============ -->
+    <section class="flow-section" id="local" data-section="8">
+      <h2><span class="sec-num">8</span> Local Dev vs Cluster Comparison</h2>
+      <p class="desc">Same code, different wiring. The frontend and backend never branch on environment — only the infrastructure around them changes.</p>
+
+      <div class="mermaid-box">
+        <div class="mermaid-out">
+        <script type="text/mermaid">
+flowchart TB
+    subgraph Loc["LOCAL DEVELOPMENT"]
+        LFE["Vite Dev Server :5173"]
+        LBE["Node Backend :5000"]
+        LM["MongoDB (Docker/manual)"]
+        LFE -->|"/api proxied"| LBE
+        LBE -->|"MONGODB_URI by hand"| LM
+    end
+
+    subgraph Clu["KUBERNETES (MINIKUBE)"]
+        CFE["Frontend Pod<br/>(nginx :80)"]
+        CBE["Backend Pod<br/>(node :5000)"]
+        CM["MongoDB Pod<br/>(mongodb-0)"]
+        ING3["Ingress"]
+        CFE -->|"relative /api/*"| ING3
+        ING3 -->|"path /api"| CBE
+        CBE -->|"ConfigMap + Secret envFrom"| CM
+    end
+        </script>
+        </div>
+      </div>
+
+      <h3>Side by side</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Aspect</th><th>Local Dev</th><th>Kubernetes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>Frontend calls <code>/api/*</code></b></td>
+              <td>Vite proxy → <code>localhost:5000</code></td>
+              <td>Ingress → <code>backend</code> Service</td>
+            </tr>
+            <tr>
+              <td><b>Backend Mongo connection</b></td>
+              <td><code>MONGODB_URI</code> set manually</td>
+              <td>Injected via ConfigMap + Secret <code>envFrom</code></td>
+            </tr>
+            <tr>
+              <td><b>Mongo</b></td>
+              <td>Run in Docker manually</td>
+              <td>StatefulSet + PVC, DNS name <code>mongodb</code></td>
+            </tr>
+            <tr>
+              <td><b>Code branching</b></td>
+              <td>None — same code</td>
+              <td>None — only wiring changes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout blue">
+        <span class="ico">🎯</span>
+        <span><b>The point:</b> keeping config out of source is what makes the exact same React bundle and Node container work in dev, in Docker, and behind the Ingress.</span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="footer">
+  ☸️ Interactive project flow generated from <code>PROJECT_FLOW.md</code> — Todo App on Kubernetes · Made with <span style="color:var(--pink)">♥</span>
+</footer>
+
+<noscript>
+  <div style="padding:20px;background:#3b0f0f;color:#ffd;text-align:center;font-weight:bold">
+    ⚠️ This page needs JavaScript to render the interactive diagrams and flows.
+  </div>
+</noscript>
+
+<script>
+// ============================================================
+// HELPERS
+// ============================================================
+const $ = (sel, ctx) => (ctx || document).querySelector(sel);
+const $$ = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
+
+function goTo(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyCmd(btn, text) {
+  navigator.clipboard.writeText(text.trim())
+    .then(() => {
+      const old = btn.textContent;
+      btn.textContent = '✅ Copied';
+      btn.style.color = '#34d399';
+      setTimeout(() => { btn.textContent = old; btn.style.color = ''; }, 1500);
+    })
+    .catch(() => {
+      const old = btn.textContent;
+      btn.textContent = '❌ Failed';
+      setTimeout(() => { btn.textContent = old; }, 1500);
+    });
+}
+
+function copyAllCommands() {
+  const blocks = $$('.cmd-block pre');
+  const all = blocks.map(b => b.innerText.trim()).join('\n\n');
+  navigator.clipboard.writeText(all)
+    .then(() => {
+      const btn = $('.sidebar .btn.primary');
+      if (!btn) return;
+      const old = btn.innerHTML;
+      btn.innerHTML = '✅ Copied!';
+      setTimeout(() => { btn.innerHTML = old; }, 1500);
+    })
+    .catch(() => {});
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function initTabs() {
+  $$('.tabs').forEach(tabs => {
+    const section = tabs.closest('.flow-section') || tabs.parentNode;
+    const panels = $$('.tab-panel', section);
+    tabs.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        panels.forEach(p => p.classList.remove('active'));
+        const target = document.getElementById(tab.dataset.tab);
+        if (target) target.classList.add('active');
+        // Render any mermaid hidden inside the newly active panel
+        renderMermaidIn(target);
+      });
+    });
+  });
+}
+
+// ============================================================
+// FLOW STEPPER
+// ============================================================
+const flowTimers = {};
+function resetFlow(group) {
+  if (flowTimers[group]) { clearInterval(flowTimers[group]); delete flowTimers[group]; }
+  const container = $(`[data-flow-group="${group}"]`);
+  if (!container) return;
+  $$('.flow-step', container).forEach(s => s.classList.remove('reached', 'current'));
+}
+
+function playFlow(group) {
+  resetFlow(group);
+  const container = $(`[data-flow-group="${group}"]`);
+  if (!container) return;
+  const steps = $$('.flow-step', container);
+  let idx = 0;
+  steps.forEach(s => s.classList.remove('reached', 'current'));
+
+  flowTimers[group] = setInterval(() => {
+    if (idx >= steps.length) {
+      clearInterval(flowTimers[group]);
+      delete flowTimers[group];
+      return;
+    }
+    steps[idx].classList.add('reached');
+    if (idx > 0) steps[idx - 1].classList.remove('current');
+    steps[idx].classList.add('current');
+    steps[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    idx++;
+  }, 900);
+}
+
+// ============================================================
+// RESOURCE CARDS
+// ============================================================
+function renderResourceCards() {
+  const grid = $('#resourceGrid');
+  if (!grid) return;
+  const resources = [
+    { name: 'demo-app', kind: 'Namespace', desc: 'Isolates all workloads', color: '#a78bfa' },
+    { name: 'backend-config', kind: 'ConfigMap', desc: 'Non-secret env: NODE_ENV, PORT, MONGODB_URI', color: '#3b82f6' },
+    { name: 'mongodb-credentials', kind: 'Secret', desc: 'MONGODB_USERNAME / MONGODB_PASSWORD', color: '#f87171' },
+    { name: 'mongodb', kind: 'StatefulSet + Service', desc: 'MongoDB 7.0 with 1Gi persistent storage', color: '#34d399' },
+    { name: 'backend', kind: 'Deployment + Service', desc: 'Node.js API on port 5000', color: '#22d3ee' },
+    { name: 'frontend', kind: 'Deployment + Service', desc: 'nginx static server on port 80', color: '#fbbf24' },
+    { name: 'demo-app ingress', kind: 'Ingress', desc: 'Path-based routing: /api → backend, / → frontend', color: '#f472b6' },
+  ];
+  grid.innerHTML = resources.map(r => `
+    <div class="resource-card" style="--rc:${r.color}">
+      <div class="kind">${r.kind}</div>
+      <div class="name">${r.name}</div>
+      <div class="desc">${r.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// SCROLLSPY + PROGRESS BAR
+// ============================================================
+function onScroll() {
+  const pb = $('#progressBar');
+  if (pb) {
+    const h = document.documentElement;
+    const pct = h.scrollTop / (h.scrollHeight - h.clientHeight) * 100;
+    pb.style.width = pct + '%';
+  }
+
+  let current = '1';
+  $$('.flow-section').forEach(sec => {
+    const rect = sec.getBoundingClientRect();
+    if (rect.top <= 150) current = sec.dataset.section || current;
+  });
+
+  $$('.side-nav-link').forEach(btn => {
+    const m = btn.textContent.trim().match(/^(\d+)/);
+    btn.classList.toggle('active', m && m[1] === current);
+  });
+  $$('#topNav a').forEach(a => a.classList.toggle('active', a.dataset.sec === current));
+}
+
+// ============================================================
+// MERMAID RENDER
+// ============================================================
+window.__mermaidQueue = [];
+window.mermaidFallback = false;
+
+function renderMermaidIn(root) {
+  if (!root) return;
+  const blocks = $$('script[type="text/mermaid"]', root).filter(b => !b.dataset.done);
+  blocks.forEach(b => {
+    b.dataset.done = '1';
+    window.__mermaidQueue.push({ el: b, src: b.textContent.trim() });
+  });
+  drainQueue();
+}
+
+function drainQueue() {
+  if (window.__mermaidFallback) return;
+  if (!window.__mermaidReady) return;
+  while (window.__mermaidQueue.length) {
+    const { el, src } = window.__mermaidQueue.shift();
+    const holder = el.closest('.mermaid-out');
+    try {
+      const id = 'mmd_' + Math.random().toString(36).slice(2, 10);
+      window.mermaid.render(id, src).then(({ svg }) => {
+        if (holder) holder.innerHTML = svg;
+        else el.outerHTML = svg;
+      }).catch(err => {
+        if (holder) holder.innerHTML = '<div class="callout amber">⚠️ Diagram failed to render: ' + err.message + '</div>';
+      });
+    } catch (e) {
+      if (holder) holder.innerHTML = '<div class="callout amber">⚠️ Diagram failed to render: ' + e.message + '</div>';
+    }
+  }
+}
+
+window.addEventListener('mermaid-ready', () => {
+  window.__mermaidReady = true;
+  drainQueue();
+});
+
+// Fallback if the module (and its CDN script) somehow fail
+window.addEventListener('error', () => {
+  // The module script failure surfaces as a window error; guard so we only act once mermaid appears absent
+  setTimeout(() => {
+    if (!window.__mermaidReady) {
+      window.__mermaidFallback = true;
+      $$('script[type="text/mermaid"]').forEach(b => {
+        const holder = b.closest('.mermaid-out');
+        if (holder) holder.innerHTML = '<div class="callout amber">Diagrams need internet access to the Mermaid CDN. Showing raw source instead:</div><pre>' + b.textContent.trim() + '</pre>';
+      });
+    }
+  }, 4000);
+});
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  initTabs();
+  renderResourceCards();
+  renderMermaidIn(document);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+});
+
+window.addEventListener('load', () => { renderMermaidIn(document); });
+</script>
+</body>
+</html>
