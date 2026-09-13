@@ -790,15 +790,20 @@ flowchart TB
     <!-- ============ SECTION 5: DEPLOYMENT ============ -->
     <section class="flow-section" id="deploy" data-section="5">
       <h2><span class="sec-num">5</span> Deployment / Build Flow</h2>
-      <p class="desc">Build the two images, apply everything via Kustomize, verify rollouts, then expose the cluster with a tunnel.</p>
+      <p class="desc">Start Minikube, build versioned images, apply everything via Kustomize, verify rollouts, then repeat the same pattern for v2/v3 releases.</p>
 
       <div class="mermaid-box">
         <div class="mermaid-out">
         <script type="text/mermaid">
 flowchart LR
-    subgraph Build["⛏️ Build Images"]
-        FB["minikube image build<br/>-t react-demo:latest<br/>./frontend"]
-        BB["minikube image build<br/>-t node-demo:latest<br/>./backend"]
+    subgraph ClusterStart["Cluster Start"]
+        MK["minikube start"]
+        IN["minikube addons enable ingress"]
+    end
+
+    subgraph Build["Build v1 Images"]
+        FB["minikube image build<br/>-t react-demo:v1<br/>./frontend"]
+        BB["minikube image build<br/>-t node-demo:v1<br/>./backend"]
     end
 
     subgraph Deploy["☸️ Deploy to Minikube"]
@@ -823,6 +828,9 @@ flowchart LR
         TUN["minikube tunnel<br/>(Docker driver)"]
     end
 
+    MK --> IN
+    IN --> FB
+    IN --> BB
     FB --> K
     BB --> K
     K --> N
@@ -862,12 +870,31 @@ flowchart TB
 
       <div class="cmd-block">
         <div class="cmd-head">
-          <span class="label">Build Images</span>
+          <span class="label">Start Cluster</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Start Minikube and enable nginx ingress
+minikube start
+minikube addons enable ingress
+
+# Check cluster
+kubectl get nodes
+kubectl get pods -A</code></pre>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Build v1 Images</span>
           <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
         </div>
 <pre><code># Build images into Minikube
-minikube image build -t react-demo:latest ./frontend
-minikube image build -t node-demo:latest ./backend</code></pre>
+minikube image build -t react-demo:v1 ./frontend
+minikube image build -t node-demo:v1 ./backend</code></pre>
+      </div>
+
+      <div class="callout amber">
+        <span class="ico">🏷️</span>
+        <span><b>For real releases, prefer version tags.</b> Change <code>k8s/frontend.yaml</code> to <code>react-demo:v1</code> and <code>k8s/backend.yaml</code> to <code>node-demo:v1</code>. Avoid relying on <code>latest</code> when you need clean v2/v3 rollouts and rollback history.</span>
       </div>
 
       <div class="cmd-block">
@@ -902,6 +929,73 @@ minikube tunnel   # only for Docker driver
 # Inspect
 kubectl get all,ingress,pvc -n demo-app
 kubectl logs deployment/backend -n demo-app</code></pre>
+      </div>
+
+      <h3>Next release: v2 or v3</h3>
+      <div class="flow-steps" data-flow-group="release">
+        <div class="flow-step" data-step="1">
+          <span class="step-num">1</span>
+          <div class="step-body"><span class="step-title">Build new immutable tags</span>Create <code>react-demo:v2</code> and <code>node-demo:v2</code> instead of rebuilding <code>latest</code>.</div>
+        </div>
+        <div class="flow-step" data-step="2">
+          <span class="step-num">2</span>
+          <div class="step-body"><span class="step-title">Update manifests</span>Change <code>k8s/frontend.yaml</code> and <code>k8s/backend.yaml</code> from <code>v1</code> to <code>v2</code>.</div>
+        </div>
+        <div class="flow-step" data-step="3">
+          <span class="step-num">3</span>
+          <div class="step-body"><span class="step-title">Apply release</span><code>kubectl apply -k k8s</code> triggers rolling updates for the Deployments.</div>
+        </div>
+        <div class="flow-step" data-step="4">
+          <span class="step-num">4</span>
+          <div class="step-body"><span class="step-title">Verify or rollback</span>Watch rollout status, test <code>/</code> and <code>/api/health</code>, then undo if needed.</div>
+        </div>
+      </div>
+      <div class="cta-row">
+        <button class="btn primary" onclick="playFlow('release')">▶ Play release</button>
+        <button class="btn" onclick="resetFlow('release')">Reset</button>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Release v2</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Build v2 images
+minikube image build -t react-demo:v2 ./frontend
+minikube image build -t node-demo:v2 ./backend
+
+# Update YAML image tags to v2, then apply
+kubectl apply -k k8s
+
+# Watch rollout
+kubectl rollout status deployment/backend -n demo-app
+kubectl rollout status deployment/frontend -n demo-app</code></pre>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Fast Local Update</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Quick live-cluster update for testing
+kubectl set image deployment/backend backend=node-demo:v2 -n demo-app
+kubectl set image deployment/frontend frontend=react-demo:v2 -n demo-app
+
+# Remember: apply -k will return to whatever image tags are in YAML.</code></pre>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-head">
+          <span class="label">Rollback Release</span>
+          <button class="copy-btn" onclick="copyCmd(this, this.closest('.cmd-block').querySelector('pre').innerText)">📋 Copy</button>
+        </div>
+<pre><code># Roll back frontend and backend
+kubectl rollout undo deployment/backend -n demo-app
+kubectl rollout undo deployment/frontend -n demo-app
+
+# Check history
+kubectl rollout history deployment/backend -n demo-app
+kubectl rollout history deployment/frontend -n demo-app</code></pre>
       </div>
 
       <div class="cmd-block">

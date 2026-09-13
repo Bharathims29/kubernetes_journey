@@ -176,3 +176,102 @@ restart without the frontend knowing.
 The frontend and backend code never branch on environment — only the
 *wiring around them* changes, which is the point of keeping config out of
 the source.
+
+## 8. Deployment and Release Flow
+
+Use this when starting the cluster for the first time and when releasing the
+next app version, for example `v2` or `v3`.
+
+### First-time cluster start
+
+```bash
+minikube start
+minikube addons enable ingress
+
+kubectl get nodes
+kubectl get pods -A
+```
+
+### First app release (`v1`)
+
+Build versioned images into Minikube:
+
+```bash
+minikube image build -t react-demo:v1 ./frontend
+minikube image build -t node-demo:v1 ./backend
+```
+
+Set the image tags in the manifests:
+
+```yaml
+# k8s/frontend.yaml
+image: react-demo:v1
+
+# k8s/backend.yaml
+image: node-demo:v1
+```
+
+Deploy:
+
+```bash
+kubectl apply -k k8s
+```
+
+Wait for readiness:
+
+```bash
+kubectl rollout status statefulset/mongodb -n demo-app
+kubectl rollout status deployment/backend -n demo-app
+kubectl rollout status deployment/frontend -n demo-app
+```
+
+Access and inspect:
+
+```bash
+minikube ip
+minikube tunnel   # keep running for Docker-driver ingress access
+
+kubectl get all,ingress,pvc -n demo-app
+```
+
+### Next release (`v2`, `v3`, ...)
+
+Build a new tag for each release:
+
+```bash
+minikube image build -t react-demo:v2 ./frontend
+minikube image build -t node-demo:v2 ./backend
+```
+
+Update the manifests from `v1` to `v2`, then apply:
+
+```bash
+kubectl apply -k k8s
+kubectl rollout status deployment/backend -n demo-app
+kubectl rollout status deployment/frontend -n demo-app
+```
+
+For `v3`, repeat the same pattern with `react-demo:v3` and `node-demo:v3`.
+
+### Fast local update
+
+For quick testing, you can update the running Deployments directly:
+
+```bash
+kubectl set image deployment/backend backend=node-demo:v2 -n demo-app
+kubectl set image deployment/frontend frontend=react-demo:v2 -n demo-app
+```
+
+This changes the live cluster only. If your YAML files still say `v1`, the next
+`kubectl apply -k k8s` will move the cluster back to `v1`, so update the
+manifests for real releases.
+
+### Rollback
+
+```bash
+kubectl rollout undo deployment/backend -n demo-app
+kubectl rollout undo deployment/frontend -n demo-app
+
+kubectl rollout history deployment/backend -n demo-app
+kubectl rollout history deployment/frontend -n demo-app
+```
